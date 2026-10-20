@@ -104,13 +104,14 @@ public final class HTTPServer: @unchecked Sendable {
             .serverChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
             .childChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
             .childChannelInitializer { channel in
+                let proxied = ProxiedPeer()
                 let upgrader = NIOWebSocketServerUpgrader(
                     maxFrameSize: HTTPServer.maxWebSocketFrameBytes,
                     shouldUpgrade: { @Sendable channel, head in
                         let path = head.uri.split(separator: "?").first.map(String.init) ?? head.uri
                         guard path == "/v1/ws",
                               RequestOriginPolicy.allows(head.headers),
-                              let remote = channel.remoteAddress?.ipAddress else {
+                              let remote = proxied.address ?? channel.remoteAddress?.ipAddress else {
                             return channel.eventLoop.makeSucceededFuture(nil)
                         }
                         return channel.eventLoop.makeFutureWithTask {
@@ -133,7 +134,7 @@ public final class HTTPServer: @unchecked Sendable {
                         }
                     },
                     upgradePipelineHandler: { @Sendable channel, head in
-                        let remote = channel.remoteAddress?.ipAddress ?? ""
+                        let remote = proxied.address ?? channel.remoteAddress?.ipAddress ?? ""
                         return channel.eventLoop.makeFutureWithTask {
                             guard case let .authorized(deviceID) = await sourceAuthorizer.authorize(
                                 headers: head.headers,
@@ -157,7 +158,8 @@ public final class HTTPServer: @unchecked Sendable {
                 )
                 let httpHandler = HTTPHandler(
                     routes: routes,
-                    sourceAuthorizer: sourceAuthorizer
+                    sourceAuthorizer: sourceAuthorizer,
+                    proxied: proxied
                 )
                 let upgradeConfig: NIOHTTPServerUpgradeConfiguration = (
                     upgraders: [upgrader],
@@ -166,7 +168,8 @@ public final class HTTPServer: @unchecked Sendable {
                     }
                 )
                 return channel.pipeline
-                    .configureHTTPServerPipeline(withServerUpgrade: upgradeConfig)
+                    .addHandler(ByteToMessageHandler(ProxyProtocolDecoder(peer: proxied)))
+                    .flatMap { channel.pipeline.configureHTTPServerPipeline(withServerUpgrade: upgradeConfig) }
                     .flatMap { channel.pipeline.addHandler(httpHandler) }
             }
         return try await bs.bind(host: host, port: port).get()
@@ -200,12 +203,14 @@ private final class HTTPHandler: ChannelInboundHandler, RemovableChannelHandler,
 
     private let routes: Routes
     private let sourceAuthorizer: BearerSourceAuthorizer
+    private let proxied: ProxiedPeer
     private var pendingHead: HTTPRequestHead?
     private var bodyBuffer = ByteBuffer()
 
-    init(routes: Routes, sourceAuthorizer: BearerSourceAuthorizer) {
+    init(routes: Routes, sourceAuthorizer: BearerSourceAuthorizer, proxied: ProxiedPeer) {
         self.routes = routes
         self.sourceAuthorizer = sourceAuthorizer
+        self.proxied = proxied
     }
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
@@ -223,7 +228,8 @@ private final class HTTPHandler: ChannelInboundHandler, RemovableChannelHandler,
                 ? bodyBuffer.getData(at: bodyBuffer.readerIndex,
                                      length: bodyBuffer.readableBytes)
                 : nil
-            let remote = context.remoteAddress?.ipAddress ?? ""
+            // A PROXY-protocol source (loopback-trusted) wins over the TCP peer.
+            let remote = proxied.address ?? context.remoteAddress?.ipAddress ?? ""
             let routes = self.routes
             let sourceAuthorizer = self.sourceAuthorizer
             let responder = HTTPChannelResponder(context: context)
