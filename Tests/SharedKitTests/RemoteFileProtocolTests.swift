@@ -66,8 +66,8 @@ struct RemoteFileProtocolTests {
         let expectedBeginParams: JSONValue = .object([
             "batch_id": .string("11111111-2222-3333-4444-555555555555"),
             "filename": .string("archive.zip"), "mime_type": .string("application/zip"),
-            "bytes": .int(100 * 1024 * 1024), "sha256": .string(String(repeating: "a", count: 64)),
-            "batch_file_count": .int(10), "batch_bytes": .int(250 * 1024 * 1024),
+            "bytes": .int(Int64(100 * 1024 * 1024)), "sha256": .string(String(repeating: "a", count: 64)),
+            "batch_file_count": .int(10), "batch_bytes": .int(Int64(250 * 1024 * 1024)),
         ])
         #expect(envelope.params == expectedBeginParams)
 

@@ -24,3 +24,15 @@ public struct ReconnectPolicy {
         attempt = 0
     }
 }
+
+extension ReconnectPolicy {
+    /// Retry interval after cmux rejects the connection by policy. Retrying
+    /// faster cannot help: the mode only changes when cmux restarts.
+    public static let accessDeniedDelay: Double = 60
+
+    /// True when `message` is cmux's `cmuxOnly` rejection of a process that
+    /// was not started inside cmux.
+    public static func isAccessDenied(_ message: String?) -> Bool {
+        message?.localizedCaseInsensitiveContains("access denied") == true
+    }
+}
