@@ -335,6 +335,14 @@ public actor CMUXClient {
     /// True only while the underlying channel is live and no terminal
     /// (channelClosed) error has been recorded. `CmuxConnection` uses this
     /// to decide whether a cached client can be reused or must be re-dialed.
+    /// The `ERROR: …` line cmux sent before closing the channel, if any. The
+    /// event-stream supervisor uses it to tell a policy rejection (e.g. the
+    /// `cmuxOnly` ancestry check) from an ordinary disconnect.
+    public func terminalServerMessage() -> String? {
+        if case .serverMessage(let message) = terminalError { return message }
+        return nil
+    }
+
     public func isUsable() -> Bool {
         channel.isActive && terminalError == nil
     }

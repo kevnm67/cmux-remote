@@ -81,8 +81,14 @@ struct Serve: AsyncParsableCommand {
                     if ContinuousClock.now - attachedAt > .seconds(5) {
                         policy.reset()
                     }
-                    logger.warning("cmux event stream detached; will re-attach")
+                    let serverMessage = await client.terminalServerMessage()
                     await conn.invalidateEvents()
+                    if ReconnectPolicy.isAccessDenied(serverMessage) {
+                        logger.warning("cmux rejected the relay (\(serverMessage ?? "")); set automation.socketControlMode to password in cmux and restart cmux (docs/connection-guide.en.md, section 3a); retrying in \(Int(ReconnectPolicy.accessDeniedDelay)) s")
+                        try? await Task.sleep(nanoseconds: UInt64(ReconnectPolicy.accessDeniedDelay * 1_000_000_000))
+                        continue
+                    }
+                    logger.warning("cmux event stream detached; will re-attach")
                 } catch {
                     logger.warning("cmux event stream unavailable: \(String(describing: error))")
                 }

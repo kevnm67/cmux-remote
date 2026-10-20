@@ -43,7 +43,10 @@ final class HostServicesTests: XCTestCase {
         )
 
         XCTAssertTrue(result.path.hasPrefix(directory.path))
-        XCTAssertTrue(result.filename.hasPrefix("19700101-"))
+        let localDay = DateFormatter()
+        localDay.locale = Locale(identifier: "en_US_POSIX")
+        localDay.dateFormat = "yyyyMMdd"
+        XCTAssertTrue(result.filename.hasPrefix("\(localDay.string(from: Date(timeIntervalSince1970: 0)))-"))
         XCTAssertFalse(result.filename.contains("/"))
         XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: result.path)), data)
     }

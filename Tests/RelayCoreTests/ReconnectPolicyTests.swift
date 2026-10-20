@@ -19,4 +19,11 @@ final class ReconnectPolicyTests: XCTestCase {
         p.reset()
         XCTAssertEqual(p.nextDelay(), 0.5, accuracy: 1e-9)
     }
+
+    func testAccessDeniedDetectionMatchesCmuxOnlyRejection() {
+        XCTAssertTrue(ReconnectPolicy.isAccessDenied("ERROR: Access denied — only processes started inside cmux can connect"))
+        XCTAssertFalse(ReconnectPolicy.isAccessDenied("ERROR: something else"))
+        XCTAssertFalse(ReconnectPolicy.isAccessDenied(nil))
+        XCTAssertGreaterThan(ReconnectPolicy.accessDeniedDelay, 8.0)
+    }
 }

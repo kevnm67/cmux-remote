@@ -91,6 +91,9 @@ final class CMUXClientTests: XCTestCase {
             XCTAssertTrue(message.contains("Access denied"), message)
         }
 
+        let terminal = await fix.client.terminalServerMessage()
+        XCTAssertTrue(terminal?.contains("Access denied") == true, String(describing: terminal))
+
         do {
             _ = try await fix.client.call(method: "workspace.list", params: .object([:]))
             XCTFail("expected cached terminal server message")
