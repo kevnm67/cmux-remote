@@ -96,6 +96,18 @@ private func defaultAppSupportDirectory(_ env: [String: String]) -> URL {
         .appendingPathComponent("Application Support", isDirectory: true)
 }
 
+/// Returns the `CMUX_SOCKET_CAPABILITY` token cmux exports into processes it
+/// starts, or nil when it is absent or malformed (cmux's shell integration
+/// sends no envelope for an empty token or one containing whitespace).
+public func cmuxSocketCapability(
+    _ env: [String: String] = ProcessInfo.processInfo.environment
+) -> String? {
+    guard let token = env["CMUX_SOCKET_CAPABILITY"], !token.isEmpty,
+          token.rangeOfCharacter(from: .whitespacesAndNewlines) == nil
+    else { return nil }
+    return token
+}
+
 /// Resolves the password used by cmux `socketControlMode=password`.
 ///
 /// Order intentionally matches current cmux CLI behavior for non-interactive
@@ -155,15 +167,18 @@ public struct UnixSocketChannel {
     public let path: String
     public let group: EventLoopGroup
     public let connectTimeout: TimeAmount
+    public let capability: String?
 
     public init(
         path: String,
         group: EventLoopGroup,
-        connectTimeout: TimeAmount = .seconds(10)
+        connectTimeout: TimeAmount = .seconds(10),
+        capability: String? = cmuxSocketCapability()
     ) {
         self.path = path
         self.group = group
         self.connectTimeout = connectTimeout
+        self.capability = capability
     }
 
     public func connect(handler: @escaping @Sendable (Channel) -> EventLoopFuture<Void>)
@@ -172,13 +187,14 @@ public struct UnixSocketChannel {
         guard FileManager.default.fileExists(atPath: path) else {
             throw UnixSocketChannelError.socketMissing(path)
         }
+        let capability = self.capability
         let bs = ClientBootstrap(group: group)
             .connectTimeout(connectTimeout)
             .channelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
             .channelInitializer { channel in
                 channel.pipeline.addHandlers([
                     LineFrameDecoder(),
-                    LineFrameEncoder(),
+                    LineFrameEncoder(capability: capability),
                 ]).flatMap { handler(channel) }
             }
         do {

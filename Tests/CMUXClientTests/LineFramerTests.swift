@@ -33,4 +33,20 @@ final class LineFramerTests: XCTestCase {
         let out: ByteBuffer = try XCTUnwrap(try chan.readOutbound())
         XCTAssertEqual(out.getString(at: 0, length: out.readableBytes), "hi\n")
     }
+
+    func testEncoderPrefixesCapabilityEnvelope() throws {
+        let chan = EmbeddedChannel(handler: LineFrameEncoder(capability: "tok123"))
+        var buf = ByteBufferAllocator().buffer(capacity: 8); buf.writeString("{\"id\":1}")
+        try chan.writeOutbound(buf)
+        let out: ByteBuffer = try XCTUnwrap(try chan.readOutbound())
+        XCTAssertEqual(out.getString(at: 0, length: out.readableBytes),
+                       "_cmux_capability_v1 tok123 {\"id\":1}\n")
+    }
+
+    func testCapabilityResolverRejectsMissingEmptyAndWhitespace() {
+        XCTAssertNil(cmuxSocketCapability([:]))
+        XCTAssertNil(cmuxSocketCapability(["CMUX_SOCKET_CAPABILITY": ""]))
+        XCTAssertNil(cmuxSocketCapability(["CMUX_SOCKET_CAPABILITY": "a b"]))
+        XCTAssertEqual(cmuxSocketCapability(["CMUX_SOCKET_CAPABILITY": "abc.DEF-1"]), "abc.DEF-1")
+    }
 }
