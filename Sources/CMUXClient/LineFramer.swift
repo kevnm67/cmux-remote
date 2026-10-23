@@ -26,10 +26,24 @@ public final class LineFrameEncoder: ChannelOutboundHandler {
     public typealias OutboundIn = ByteBuffer
     public typealias OutboundOut = ByteBuffer
 
-    public init() {}
+    /// cmux `cmuxOnly` capability token. When set, every line is prefixed
+    /// with `_cmux_capability_v1 <token> ` (the same envelope cmux's shell
+    /// integration uses), which authorizes processes whose ancestry cmux
+    /// cannot see, e.g. children of a tmux server reparented to launchd.
+    private let capabilityPrefix: [UInt8]?
+
+    public init(capability: String? = nil) {
+        self.capabilityPrefix = capability.map { Array("_cmux_capability_v1 \($0) ".utf8) }
+    }
 
     public func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
         var buf = self.unwrapOutboundIn(data)
+        if let capabilityPrefix {
+            var framed = context.channel.allocator.buffer(capacity: capabilityPrefix.count + buf.readableBytes + 1)
+            framed.writeBytes(capabilityPrefix)
+            framed.writeBuffer(&buf)
+            buf = framed
+        }
         buf.writeInteger(UInt8(ascii: "\n"))
         context.write(self.wrapOutboundOut(buf), promise: promise)
     }

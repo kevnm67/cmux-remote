@@ -191,7 +191,8 @@ final class MTELGCmuxFixture: @unchecked Sendable {
             let connectedChannel = try await UnixSocketChannel(
                 path: socketPath,
                 group: group,
-                connectTimeout: setupTimeout.nioTimeAmount
+                connectTimeout: setupTimeout.nioTimeAmount,
+                capability: nil
             ).connect { channel in
                 channel.eventLoop.makeSucceededVoidFuture()
             }
