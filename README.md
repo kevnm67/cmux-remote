@@ -400,6 +400,23 @@ relay가 stale socket에 묶이지 않도록 하기 위함입니다. 고정 경�
 
 ---
 
+## 항상 켜짐 (cmuxOnly 모드, 수동 작업 없음)
+
+cmux 기본 `cmuxOnly` 소켓 모드는 `CMUX_SOCKET_CAPABILITY`를 가진 프로세스만 허용하므로
+launchd 작업은 relay(또는 watchdog)가 될 수 없습니다. 그래서 relay는 cmux 안에서 돌고,
+`scripts/`의 스크립트 4개가 유지합니다(`./scripts/install-always-on.sh`로 `~/.cmuxremote/bin`에
+설치. `cmux-relay`와 `relay.json`은 건드리지 않음).
+
+| 스크립트 | 역할 |
+|---|---|
+| `ensure-relay.sh` | cmux 셸의 `~/.zshrc`에서 실행: runner가 없으면 `cmux-remote · relay` 워크스페이스를 만들고 watchdog 시작. cmux 재시작 → 복원된 셸 → relay 복구 |
+| `run-relay-in-cmux.sh` | 재시작 루프. 설정된 Tailscale 주소가 생길 때까지 대기한 뒤 `cmux-relay serve` 실행 |
+| `relay-watchdog.sh` | 분리 실행(워크스페이스가 닫혀도 유지). 5초마다 워크스페이스 재확인, 고아 relay 종료, 프로브 2회 실패 시 relay 재시작 |
+| `relay-probe.py` | TCP + `/v1/health` + 실제 WebSocket 핸드셰이크(101) |
+
+바인딩은 `0.0.0.0`이 아니라 `relay.json`의 Tailscale 주소를 유지합니다(인증이 Tailscale
+`whois`에 의존하고 `/v1/health`는 인증이 없기 때문). 로그: `~/.cmuxremote/log/watchdog.log`.
+
 ## relay 운영
 
 relay는 launchd 유저 에이전트(`com.genie.cmuxremote`)로 돌아갑니다.

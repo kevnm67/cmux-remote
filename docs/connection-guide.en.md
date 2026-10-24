@@ -155,7 +155,12 @@ so cmux rejects it with:
 ERROR: Access denied — only processes started inside cmux can connect
 ```
 
-Fix: switch cmux to password mode, then set a socket password.
+Fix (no cmux restart needed): run the relay inside cmux and let the always-on
+scripts keep it there (`./scripts/install-always-on.sh`, see **Always on** in the
+README). cmux authorises on the `CMUX_SOCKET_CAPABILITY` env var that cmux
+terminals carry, so a relay started by `run-relay-in-cmux.sh` is accepted.
+
+Alternative, if you would rather run the relay under launchd: switch cmux to password mode, then set a socket password.
 
 **1. Set the mode.** cmux creates `~/.config/cmux/cmux.json` on launch,
 so edit the existing file rather than overwriting it (back it up first):
