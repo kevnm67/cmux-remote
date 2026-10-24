@@ -430,6 +430,32 @@ the relay to whatever socket happened to be live at install time.
 
 ---
 
+## Always on (cmuxOnly mode, no manual steps)
+
+cmux's default `cmuxOnly` socket mode only accepts processes that carry cmux's
+`CMUX_SOCKET_CAPABILITY`, so a launchd job cannot be the relay (or its watchdog).
+The relay therefore runs inside cmux, kept alive by four small scripts in
+`scripts/` (install with `./scripts/install-always-on.sh`, which copies them to
+`~/.cmuxremote/bin` and leaves `cmux-relay` and `relay.json` alone):
+
+| Script | Job |
+|---|---|
+| `ensure-relay.sh` | Runs from `~/.zshrc` in every cmux shell: creates the `cmux-remote · relay` workspace if no runner exists and starts the watchdog. cmux restart → restored shells → relay back, no manual step |
+| `run-relay-in-cmux.sh` | Restart loop. Waits until the configured Tailscale address exists (Tailscale down at start no longer crash-loops), then runs `cmux-relay serve` |
+| `relay-watchdog.sh` | Detached, inherits the cmux capability (survives its workspace closing). Every 5 s: re-ensure the workspace, kill orphan relays, probe; restart the relay after 2 failed probes. Exits after 4 refused pings (cmux restarted → capability stale); the next cmux shell restarts it |
+| `relay-probe.py` | TCP + `/v1/health` + a real WebSocket handshake (101) with a Mac-local probe credential in `~/.cmuxremote/probe-token` (0600, never printed) |
+
+Binding stays on the Tailscale address from `relay.json` rather than `0.0.0.0`:
+authentication relies on Tailscale `whois` of the source address, `/v1/health`
+is unauthenticated, and `0.0.0.0` would add the LAN and loopback to the attack
+surface. Tailscale node IPs are stable, so waiting for the address is enough; a
+socket left dead after Tailscale reconnects is caught by the probe. The iOS
+client already reconnects with 1 s → 60 s backoff.
+
+Note: a probe from the Mac to its own Tailscale IP short-circuits through `lo0`; it proves bind and accept, not reachability from another tailnet device.
+
+Logs: `~/.cmuxremote/log/watchdog.log` and `stderr.log`.
+
 ## Operating the relay
 
 The relay runs as a launchd user agent (`com.genie.cmuxremote`). With
