@@ -8,7 +8,11 @@ A probe from the Mac to its own Tailscale IP short-circuits through lo0: it prov
 bind and accept, not tailnet reachability from another device.
 Usage: relay-probe.py HOST PORT
 """
-import base64, json, os, socket, sys
+import base64
+import json
+import os
+import socket
+import sys
 
 HOST, PORT = sys.argv[1], int(sys.argv[2])
 TOKEN_FILE = os.path.expanduser("~/.cmuxremote/probe-token")
@@ -27,7 +31,8 @@ def request(raw: bytes) -> bytes:
             data += chunk
         head, _, body = data.partition(b"\r\n\r\n")
         if b"content-length" in head.lower():
-            want = int([l.split(b":")[1] for l in head.split(b"\r\n") if l.lower().startswith(b"content-length")][0])
+            want = int(next(line.split(b":")[1] for line in head.split(b"\r\n")
+                            if line.lower().startswith(b"content-length")))
             while len(body) < want:
                 chunk = s.recv(4096)
                 if not chunk:
@@ -63,8 +68,13 @@ def ws_handshake(token: str) -> int:
 
 def main() -> int:
     if status(get("/v1/health")) != 200:
-        print("health: not 200"); return 1
-    token = open(TOKEN_FILE).read().strip() if os.path.exists(TOKEN_FILE) else mint_token()
+        print("health: not 200")
+        return 1
+    if os.path.exists(TOKEN_FILE):
+        with open(TOKEN_FILE) as f:
+            token = f.read().strip()
+    else:
+        token = mint_token()
     code = ws_handshake(token)
     if code in (401, 403) and os.path.exists(TOKEN_FILE):  # stale token: re-mint once
         code = ws_handshake(mint_token())
@@ -74,5 +84,6 @@ def main() -> int:
 
 try:
     sys.exit(main())
-except Exception as e:  # connection refused, timeout, malformed reply
-    print(f"probe failed: {type(e).__name__}: {e}"); sys.exit(1)
+except (OSError, ValueError, KeyError, IndexError, RuntimeError) as e:  # refused, timeout, malformed reply
+    print(f"probe failed: {type(e).__name__}: {e}")
+    sys.exit(1)

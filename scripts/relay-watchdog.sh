@@ -8,7 +8,7 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=relay-common.sh
+# shellcheck source=relay-common.sh disable=SC1091
 . "$here/relay-common.sh"
 
 pidfile="$RELAY_HOME/watchdog.pid"
