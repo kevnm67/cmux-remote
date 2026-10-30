@@ -21,6 +21,9 @@ log_dir="$RELAY_HOME/log"
 
 mkdir -p "$log_dir"
 while true; do
+  # The watchdog dies with a stale cmux capability or a manual kill; this runner
+  # lives inside cmux, so it can always bring the watchdog back (idempotent).
+  "$here/ensure-relay.sh" >/dev/null 2>&1 || true
   waited=0
   # Re-read relay.json each pass so a corrected listen address is picked up.
   until read -r host _ < <(relay_listen) && host_is_up "$host"; do

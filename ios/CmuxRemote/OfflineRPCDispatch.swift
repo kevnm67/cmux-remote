@@ -13,7 +13,7 @@ actor OfflineRPCDispatch: RPCDispatch {
 
     func call(method: String, params: JSONValue) async throws -> RPCResponse {
         guard let target else {
-            throw CmuxRemoteRPCError.rpc(code: "offline", message: "Configure Mac host in Settings")
+            throw CmuxRemoteRPCError.rpc(code: CmuxRemoteRPCError.notConnectedCode, message: "Not connected to the Mac relay yet")
         }
         return try await target.call(method: method, params: params)
     }
