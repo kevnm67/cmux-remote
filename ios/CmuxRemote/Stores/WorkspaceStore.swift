@@ -21,6 +21,7 @@ public final class WorkspaceStore {
     public func refresh() async {
         // Reloading the list over a live connection is not a reconnect; only
         // show "connecting" when there is no established connection yet.
+        let previous = connection
         if connection != .connected {
             connection = .connecting
         }
@@ -37,6 +38,10 @@ public final class WorkspaceStore {
                 await refreshSurfaces(workspaceId: workspace.id)
             }
             connection = .connected
+        } catch let error as CmuxRemoteRPCError where error.isNotConnected {
+            // Placeholder store, no live session yet: keep the bootstrap state
+            // (connecting, or the real failure) instead of a misleading error.
+            connection = previous
         } catch {
             connection = .error(String(describing: error))
         }

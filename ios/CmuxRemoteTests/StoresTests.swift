@@ -521,6 +521,26 @@ final class StoresTests: XCTestCase {
         XCTAssertEqual(store.battery.displayText, "88% ↯")
     }
 
+    func testWorkspaceRefreshOnPlaceholderKeepsBootstrapConnectionState() async {
+        let store = WorkspaceStore(rpc: OfflineRPCDispatch())
+        store.connection = .error("The Mac relay is unreachable.")
+
+        await store.refresh()
+        XCTAssertEqual(store.connection, .error("The Mac relay is unreachable."))
+
+        store.connection = .connecting
+        await store.refresh()
+        XCTAssertEqual(store.connection, .connecting)
+    }
+
+    func testWorkspaceRefreshStillReportsRealRPCErrors() async {
+        let store = WorkspaceStore(rpc: FailingRPCDispatch())
+        await store.refresh()
+        guard case .error = store.connection else {
+            return XCTFail("Expected error, got \(store.connection)")
+        }
+    }
+
     func testSurfaceStoreReportsInputDispatchFailure() async {
         let rpc = FailingRPCDispatch()
         let surfaceStore = SurfaceStore(rpc: rpc)

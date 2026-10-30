@@ -6,6 +6,18 @@ public enum CmuxRemoteRPCError: Error, Equatable {
     case missingResult(id: String)
 }
 
+extension CmuxRemoteRPCError {
+    /// Thrown by the placeholder dispatch before a live relay session exists.
+    /// It says nothing about the relay, so it must not replace the real
+    /// connection state (connecting, or the actual failure).
+    public static let notConnectedCode = "offline"
+
+    public var isNotConnected: Bool {
+        if case .rpc(let code, _) = self { return code == Self.notConnectedCode }
+        return false
+    }
+}
+
 extension RPCResponse {
     public func requireOk() throws -> RPCResponse {
         if let error { throw CmuxRemoteRPCError.rpc(code: error.code, message: error.message) }
