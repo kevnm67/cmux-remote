@@ -8,6 +8,7 @@
 # Usage: scripts/ci/deploy-testflight.sh [--dry-run]
 #   BUILD_NUMBER  CFBundleVersion to ship (default: current Info.plist value + 1)
 #   OP_ITEM       override the 1Password item id/name
+#   ASC_ENV_FILE  read the key from a fastlane-style env file instead of 1Password
 # --dry-run runs everything except the upload (exportArchive writes an .ipa locally).
 set -euo pipefail
 
@@ -31,10 +32,22 @@ build="${BUILD_NUMBER:-$((current + 1))}"
 sed -i '' -E "s/^([[:space:]]*CFBundleVersion:[[:space:]]*)\"[0-9]+\"/\1\"$build\"/" "$project_yml"
 echo "CFBundleVersion: $current -> $build in project.yml (commit this bump after a successful upload)"
 
-key_id="$(op read "op://$vault/$item/key_id")"
-issuer_id="$(op read "op://$vault/$item/issuer_id")"
-key_path="$work/AuthKey_${key_id}.p8"
-(umask 077 && op read "op://$vault/$item/private_key" > "$key_path")
+if [[ -n "${ASC_ENV_FILE:-}" ]]; then
+    # fastlane-style env file (APPSTORE_KEY_ID / APPSTORE_ISSUER_ID / APPSTORE_KEY_CONTENT,
+    # content with literal \n escapes). Values are parsed, never echoed.
+    key_path="$work/key.p8"
+    key_id="$(python3 -I "$root/scripts/ci/asc-env-key.py" "$ASC_ENV_FILE" "$key_path" key_id)"
+    issuer_id="$(python3 -I "$root/scripts/ci/asc-env-key.py" "$ASC_ENV_FILE" "$key_path" issuer_id)"
+else
+    key_id="$(op read "op://$vault/$item/key_id")"
+    issuer_id="$(op read "op://$vault/$item/issuer_id")"
+    key_path="$work/AuthKey_${key_id}.p8"
+    (umask 077 && op read "op://$vault/$item/private_key" > "$key_path")
+fi
+
+# Fail early with a clear message instead of xcodebuild's CryptoKit PEM error.
+openssl pkey -in "$key_path" -noout 2>/dev/null \
+    || { echo "ASC private key is not a valid PEM (truncated or mangled)" >&2; exit 1; }
 
 (cd "$ios" && xcodegen generate)
 

@@ -390,7 +390,7 @@ relay가 stale socket에 묶이지 않도록 하기 위함입니다. 고정 경�
 >     "key_path": "~/.cmuxremote/AuthKey_XXXXXXXXXX.p8",
 >     "key_id":   "XXXXXXXXXX",
 >     "team_id":  "XXXXXXXXXX",
->     "topic":    "com.genie.CmuxRemote",
+>     "topic":    "com.kevinmorton.cmuxremote",
 >     "env":      "prod"
 >   }
 > }
