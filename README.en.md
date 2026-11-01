@@ -420,7 +420,7 @@ the relay to whatever socket happened to be live at install time.
 >     "key_path": "~/.cmuxremote/AuthKey_XXXXXXXXXX.p8",
 >     "key_id":   "XXXXXXXXXX",
 >     "team_id":  "XXXXXXXXXX",
->     "topic":    "com.genie.CmuxRemote",
+>     "topic":    "com.kevinmorton.cmuxremote",
 >     "env":      "prod"
 >   }
 > }
