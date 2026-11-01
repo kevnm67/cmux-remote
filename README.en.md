@@ -607,6 +607,8 @@ cmux-remote/
 
 ## Development
 
+**TestFlight:** `scripts/ci/deploy-testflight.sh [--dry-run]` bumps `CFBundleVersion`, archives, and uploads using the App Store Connect API key from 1Password (`Dev_kevin`). Commit the build bump after a successful upload.
+
 ```bash
 # Run all Swift tests (relay + shared kits)
 swift test
