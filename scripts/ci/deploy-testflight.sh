@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# Archive CmuxRemote and upload it to TestFlight with an App Store Connect API key.
+#
+# The key (key_id, issuer_id, private_key) comes from 1Password item
+# "App Store Connect API Key - H22N28M8ZY" in vault Dev_kevin via `op read`.
+# Nothing secret is echoed; the .p8 lives in a 0700 temp dir removed on exit.
+#
+# Usage: scripts/ci/deploy-testflight.sh [--dry-run]
+#   BUILD_NUMBER  CFBundleVersion to ship (default: current Info.plist value + 1)
+#   OP_ITEM       override the 1Password item id/name
+# --dry-run runs everything except the upload (exportArchive writes an .ipa locally).
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ios="$root/ios"
+plist="$ios/CmuxRemote/Info.plist"
+item="${OP_ITEM:-App Store Connect API Key - H22N28M8ZY}"
+vault="Dev_kevin"
+dry_run=0
+[[ "${1:-}" == "--dry-run" ]] && dry_run=1
+
+work="$(mktemp -d "${TMPDIR:-/tmp}/cmux-remote-testflight.XXXXXX")"
+chmod 700 "$work"
+trap 'rm -rf "$work"' EXIT
+
+current="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$plist")"
+build="${BUILD_NUMBER:-$((current + 1))}"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $build" "$plist"
+echo "CFBundleVersion: $current -> $build (commit this bump after a successful upload)"
+
+key_id="$(op read "op://$vault/$item/key_id")"
+issuer_id="$(op read "op://$vault/$item/issuer_id")"
+key_path="$work/AuthKey_${key_id}.p8"
+(umask 077 && op read "op://$vault/$item/private_key" > "$key_path")
+
+(cd "$ios" && xcodegen generate)
+
+archive="$work/CmuxRemote.xcarchive"
+auth=(-allowProvisioningUpdates
+      -authenticationKeyPath "$key_path"
+      -authenticationKeyID "$key_id"
+      -authenticationKeyIssuerID "$issuer_id")
+
+xcodebuild archive \
+    -project "$ios/CmuxRemote.xcodeproj" -scheme CmuxRemote -configuration Release \
+    -destination 'generic/platform=iOS' -archivePath "$archive" "${auth[@]}"
+
+export_plist="$work/ExportOptions.plist"
+cp "$ios/ExportOptions-AppStore.plist" "$export_plist"
+if (( dry_run )); then
+    /usr/libexec/PlistBuddy -c 'Set :destination export' "$export_plist"
+else
+    /usr/libexec/PlistBuddy -c 'Set :destination upload' "$export_plist"
+fi
+
+xcodebuild -exportArchive -archivePath "$archive" \
+    -exportOptionsPlist "$export_plist" -exportPath "$work/export" "${auth[@]}"
+
+if (( dry_run )); then
+    echo "dry run: exported to $work/export (removed on exit); nothing uploaded"
+else
+    echo "uploaded build $build to App Store Connect"
+fi
