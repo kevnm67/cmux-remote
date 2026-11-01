@@ -76,7 +76,12 @@ def main() -> int:
     else:
         token = mint_token()
     code = ws_handshake(token)
-    if code in (401, 403) and os.path.exists(TOKEN_FILE):  # stale token: re-mint once
+    # A rejected bearer surfaces as 401/403 on plain requests but as 404 when the
+    # WebSocket upgrade is refused (the request falls through to the HTTP router).
+    # Any of them means a stale token, e.g. another client on this Mac registered
+    # the same Tailscale node and replaced it: re-mint once instead of letting the
+    # watchdog restart a healthy relay in a loop.
+    if code in (401, 403, 404) and os.path.exists(TOKEN_FILE):
         code = ws_handshake(mint_token())
     print(f"ws handshake: {code}")
     return 0 if code == 101 else 1
