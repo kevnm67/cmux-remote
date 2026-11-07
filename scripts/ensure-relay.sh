@@ -27,6 +27,13 @@ ensure_workspace() {
     mkdir "$lock" 2>/dev/null || return 0
     trap 'rmdir "$lock" 2>/dev/null || true' EXIT
 
+    # A workspace created moments ago has no runner yet (tmux + shell startup
+    # takes seconds); recreating it now would leak a second runner.
+    stamp="$RELAY_HOME/workspace.created"
+    if [ -f "$stamp" ] && [ $(($(date +%s) - $(stat -f %m "$stamp"))) -lt "${CMUX_RELAY_GRACE:-45}" ]; then
+        return 0
+    fi
+
     # Let cmux finish restoring workspaces, then re-check.
     sleep "${CMUX_RELAY_SETTLE:-5}"
     runner_running && return 0
@@ -41,6 +48,7 @@ ensure_workspace() {
         done; } || true
 
     "$CMUX_CLI" workspace create --name "$RELAY_WS_NAME" --cwd "$HOME" --command "$runner" --focus false >/dev/null
+    touch "$stamp"
     log "ensure-relay: created workspace '$RELAY_WS_NAME'"
 }
 

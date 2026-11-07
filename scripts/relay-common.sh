@@ -33,3 +33,35 @@ host_is_up() {
 RUNNER_PATTERN='^(/[^ ]*/)?bash (/[^ ]*/)?run-relay-in-cmux\.sh'
 RELAY_PATTERN='^/[^ ]*/cmux-relay serve'
 runner_running() { pgrep -f "$RUNNER_PATTERN" >/dev/null 2>&1; }
+
+# PID listening on TCP $1 (empty when free).
+port_holder() {
+    lsof -nP -iTCP:"$1" -sTCP:LISTEN -t 2>/dev/null | head -n1 || true
+}
+
+# Single-runner lock: an atomic mkdir plus a pid file. Returns 0 when this
+# process now owns the lock, 1 when a live runner already does. A dead owner's
+# lock is cleared and retaken.
+RUNNER_LOCK="$RELAY_HOME/runner.lock"
+acquire_runner_lock() {
+    mkdir -p "$RELAY_HOME"
+    local owner tries=0
+    while [ "$tries" -lt 3 ]; do
+        if mkdir "$RUNNER_LOCK" 2>/dev/null; then
+            echo "$$" >"$RUNNER_LOCK/pid"
+            return 0
+        fi
+        owner="$(cat "$RUNNER_LOCK/pid" 2>/dev/null || true)"
+        if [ -n "$owner" ] && [ "$owner" != "$$" ] && kill -0 "$owner" 2>/dev/null; then
+            return 1
+        fi
+        rm -rf "$RUNNER_LOCK"
+        tries=$((tries + 1))
+    done
+    return 1
+}
+
+release_runner_lock() {
+    if [ "$(cat "$RUNNER_LOCK/pid" 2>/dev/null || true)" = "$$" ]; then rm -rf "$RUNNER_LOCK"; fi
+    return 0
+}
